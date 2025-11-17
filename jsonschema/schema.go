@@ -103,6 +103,9 @@ type Schema struct {
 	// Default schema value.
 	Default    any
 	DefaultSet bool
+	// Const schema value.
+	Const    any
+	ConstSet bool
 
 	// ExtraTags is a map of extra struct field tags
 	ExtraTags map[string]string

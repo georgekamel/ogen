@@ -17,6 +17,7 @@ type RawSchema struct {
 	OneOf                []*RawSchema          `json:"oneOf,omitempty" yaml:"oneOf,omitempty"`
 	AnyOf                []*RawSchema          `json:"anyOf,omitempty" yaml:"anyOf,omitempty"`
 	Enum                 Enum                  `json:"enum,omitempty" yaml:"enum,omitempty"`
+	Const                RawValue              `json:"const,omitempty" yaml:"const,omitempty"`
 	MultipleOf           Num                   `json:"multipleOf,omitempty" yaml:"multipleOf,omitempty"`
 	Maximum              Num                   `json:"maximum,omitempty" yaml:"maximum,omitempty"`
 	ExclusiveMaximum     bool                  `json:"exclusiveMaximum,omitempty" yaml:"exclusiveMaximum,omitempty"`

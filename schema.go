@@ -86,6 +86,10 @@ type Schema struct {
 	// Elements in the array SHOULD be unique.
 	Enum Enum `json:"enum,omitempty" yaml:"enum,omitempty"`
 
+	// The value of this keyword MUST be a valid JSON value.
+	// This value MUST be the only allowed value for the instance.
+	Const RawValue `json:"const,omitempty" yaml:"const,omitempty"`
+
 	// The value of "multipleOf" MUST be a number, strictly greater than 0.
 	//
 	// A numeric instance is only valid if division by this keyword's value

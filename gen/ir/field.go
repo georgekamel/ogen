@@ -57,6 +57,21 @@ func (f Field) Default() Default {
 	return Default{}
 }
 
+// Const returns const value of this field, if it is set.
+func (f Field) Const() Default {
+	var schema *jsonschema.Schema
+	if spec := f.Spec; spec != nil {
+		schema = spec.Schema
+	}
+	if schema != nil && schema.ConstSet {
+		return Default{
+			Value: schema.Const,
+			Set:   true,
+		}
+	}
+	return Default{}
+}
+
 // GoDoc returns field godoc.
 func (f Field) GoDoc() []string {
 	s := f.Spec

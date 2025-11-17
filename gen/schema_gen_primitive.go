@@ -13,6 +13,15 @@ import (
 func (g *schemaGen) primitive(name string, schema *jsonschema.Schema) (*ir.Type, error) {
 	t := g.parseSimple(schema)
 
+	// Validate const value if set
+	if schema.ConstSet {
+		if err := g.validateConstValue(schema); err != nil {
+			return nil, errors.Wrap(err, "validate const")
+		}
+		// Const values are handled at field level, so we just return the primitive type
+		return t, nil
+	}
+
 	if len(schema.Enum) > 0 {
 		return g.enum(name, t, schema)
 	}
@@ -71,6 +80,54 @@ func (g *schemaGen) enum(name string, t *ir.Type, schema *jsonschema.Schema) (*i
 		EnumVariants: variants,
 		Schema:       schema,
 	}, nil
+}
+
+func (g *schemaGen) validateConstValue(s *jsonschema.Schema) error {
+	reportErr := func(err error) error {
+		pos, ok := s.Pointer.Field("const").Position()
+		if !ok {
+			return err
+		}
+		return &location.Error{
+			File: s.File(),
+			Pos:  pos,
+			Err:  err,
+		}
+	}
+
+	switch typ := s.Type; typ {
+	case jsonschema.Object, jsonschema.Array, jsonschema.Empty:
+		return &ErrNotImplemented{Name: "non-primitive const"}
+	case jsonschema.Integer:
+		if _, ok := s.Const.(int64); !ok {
+			return reportErr(errors.Errorf("const value should be an integer, got %T", s.Const))
+		}
+		return nil
+	case jsonschema.Number:
+		switch s.Const.(type) {
+		case int64, float64:
+			return nil
+		default:
+			return reportErr(errors.Errorf("const value should be a number, got %T", s.Const))
+		}
+	case jsonschema.String:
+		if _, ok := s.Const.(string); !ok {
+			return reportErr(errors.Errorf("const value should be a string, got %T", s.Const))
+		}
+		return nil
+	case jsonschema.Boolean:
+		if _, ok := s.Const.(bool); !ok {
+			return reportErr(errors.Errorf("const value should be a boolean, got %T", s.Const))
+		}
+		return nil
+	case jsonschema.Null:
+		if s.Const != nil {
+			return reportErr(errors.Errorf("const value should be null, got %T", s.Const))
+		}
+		return nil
+	default:
+		panic(fmt.Sprintf("unexpected schema type %q", typ))
+	}
 }
 
 func (g *schemaGen) validateEnumValues(s *jsonschema.Schema) error {

@@ -6,7 +6,23 @@
 	type {{ $.Name }} struct {
 	{{- range $f := $.Fields }}
 		{{- template "godoc" $f.GoDoc }}
-		{{ $f.Name }} {{ $f.Type.Go }} {{ if $f.Tag.GetTags }}{{ backquote $f.Tag.GetTags }}{{ end }}
+		{{- $const := $f.Const }}
+		{{- if $const.Set }}
+			{{- $t := $f.Type }}
+			{{- $j := $t.JSON }}
+			{{- $val := print_go $const.Value }}
+			{{- if $j.TimeFormat }}
+				{{ $f.Name }} {{ $t.Go }} = func() {{ $t.Go }} { v, _ := json.DecodeTimeFormat(jx.DecodeStr({{ quote $val }}), {{ $j.TimeFormat }}); return v }()
+			{{- else if $j.Decoder }}
+				{{ $f.Name }} {{ $t.Go }} = func() {{ $t.Go }} { v, _ := json.Decode{{ $j.Decoder }}(jx.DecodeStr({{ quote $val }})); return v }()
+			{{- else if $j.IsBase64 }}
+				{{ $f.Name }} {{ $t.Go }} = func() {{ $t.Go }} { v, _ := jx.DecodeStr({{ quote $val }}).Base64(); return v }()
+			{{- else }}
+				{{ $f.Name }} {{ $t.Go }} = {{ $t.Go }}({{ $val }})
+			{{- end }} {{ if $f.Tag.GetTags }}{{ backquote $f.Tag.GetTags }}{{ end }}
+		{{- else }}
+			{{ $f.Name }} {{ $f.Type.Go }} {{ if $f.Tag.GetTags }}{{ backquote $f.Tag.GetTags }}{{ end }}
+		{{- end }}
 	{{- end }}
 	}
 {{- end }}
