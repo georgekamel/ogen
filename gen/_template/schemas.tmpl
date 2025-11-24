@@ -16,5 +16,7 @@ func (s *{{ $.ErrorType.Name }}) Error() string {
 {{- end }}
 
 {{ template "schemas/body" $ }}
+{{ template "defaults/body" $ }}
+{{ template "consts/body" $ }}
 
 {{- end }}

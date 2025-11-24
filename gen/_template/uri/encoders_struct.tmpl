@@ -58,6 +58,9 @@ func (s *{{ $.Name }}) DecodeURI(d uri.Decoder) error {
 	{{- if $.HasDefaultFields }}
 	s.setDefaults()
 	{{- end }}
+	{{- if $.HasConstFields }}
+	s.setConsts()
+	{{- end }}
 
 	{{- if $additional }}
 	{{- $item := $additional.Type.Item }}

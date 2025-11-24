@@ -106,7 +106,38 @@ func (g *schemaGen) generate(name string, schema *jsonschema.Schema, optional bo
 		g.depthCount--
 	}()
 
+	// Debug: Check if schema has Properties with const values before transformation
+	if schema != nil && schema.Type == jsonschema.Object {
+		for _, prop := range schema.Properties {
+			if prop.Schema != nil && prop.Schema.ConstSet {
+				g.log.Debug("Schema has Property with const before transformSchema",
+					zap.String("property", prop.Name),
+					zap.Any("const_value", prop.Schema.Const),
+				)
+			}
+		}
+	}
+
 	schema = transformSchema(schema)
+
+	// Debug: Check if schema has Properties with const values after transformation
+	if schema != nil && schema.Type == jsonschema.Object {
+		for _, prop := range schema.Properties {
+			if prop.Schema != nil && prop.Schema.ConstSet {
+				g.log.Debug("Schema has Property with const after transformSchema",
+					zap.String("property", prop.Name),
+					zap.Any("const_value", prop.Schema.Const),
+				)
+			} else if prop.Schema != nil {
+				// Check if const was lost
+				g.log.Debug("Schema Property after transformSchema",
+					zap.String("property", prop.Name),
+					zap.Bool("schema_nil", prop.Schema == nil),
+					zap.Bool("const_set", prop.Schema != nil && prop.Schema.ConstSet),
+				)
+			}
+		}
+	}
 
 	t, err := g.generate2(name, schema)
 	if err != nil {
@@ -373,7 +404,19 @@ func (g *schemaGen) generate2(name string, schema *jsonschema.Schema) (ret *ir.T
 		}
 
 		for i := range schema.Properties {
-			prop := schema.Properties[i]
+			prop := &schema.Properties[i]
+			// IMPORTANT: Save the original Property's Schema pointer before calling g.generate()
+			// because g.generate() may transform the schema, but we need to preserve the original
+			// Property's Schema pointer (which contains const values) for the Field.Spec.
+			originalPropSchema := prop.Schema
+			// Debug: Verify that originalPropSchema has const values if they were defined
+			if originalPropSchema != nil && originalPropSchema.ConstSet {
+				g.log.Debug("Property has const value",
+					zap.String("property", prop.Name),
+					zap.Any("const_value", originalPropSchema.Const),
+				)
+			}
+
 			propTypeName, err := pascalSpecial(name, prop.Name)
 			if err != nil {
 				return nil, errors.Wrapf(err, "property type name: %q", prop.Name)
@@ -382,6 +425,13 @@ func (g *schemaGen) generate2(name string, schema *jsonschema.Schema) (ret *ir.T
 			t, err := g.generate(propTypeName, prop.Schema, !prop.Required)
 			if err != nil {
 				return nil, errors.Wrapf(err, "field %s", prop.Name)
+			}
+
+			// Ensure prop.Schema still points to the original schema with const values
+			// (g.generate() should not modify prop.Schema, but we use originalPropSchema to be safe)
+			if prop.Schema != originalPropSchema {
+				// If prop.Schema was modified, restore it to the original
+				prop.Schema = originalPropSchema
 			}
 
 			var (
@@ -413,15 +463,63 @@ func (g *schemaGen) generate2(name string, schema *jsonschema.Schema) (ret *ir.T
 				}
 			}
 
-			if err := addField(&ir.Field{
+			// CRITICAL: Ensure prop.Schema points to the original schema with const values
+			// before creating the Field. This is necessary because g.generate() might have
+			// caused prop.Schema to be modified or replaced.
+			prop.Schema = originalPropSchema
+
+			// Ensure we use the original Property with its Schema (which has const values)
+			// rather than any transformed schema. The Property's Schema pointer should
+			// remain unchanged even though we pass prop.Schema to g.generate() for type generation.
+			field := &ir.Field{
 				Name: fieldName,
 				Type: t,
 				Tag: ir.Tag{
 					JSON:      prop.Name,
-					ExtraTags: prop.Schema.ExtraTags,
+					ExtraTags: originalPropSchema.ExtraTags,
 				},
-				Spec: &prop,
-			}, slot); err != nil {
+				Spec: prop, // This Property's Schema should have ConstSet=true if const was defined
+			}
+			// Verify that Field.Const() works correctly right after creation
+			// This helps us identify if the issue is in Field creation or template execution
+			constVal := field.Const()
+			if constVal.Set {
+				// Const value is accessible - this is good
+				g.log.Debug("Field created with const value",
+					zap.String("field", fieldName),
+					zap.String("property", prop.Name),
+					zap.Any("const_value", constVal.Value),
+					zap.Bool("prop_schema_const_set", prop.Schema != nil && prop.Schema.ConstSet),
+					zap.Bool("spec_nil", field.Spec == nil),
+					zap.Bool("spec_schema_nil", field.Spec != nil && field.Spec.Schema == nil),
+					zap.Bool("spec_schema_const_set", field.Spec != nil && field.Spec.Schema != nil && field.Spec.Schema.ConstSet),
+				)
+			} else if originalPropSchema != nil && originalPropSchema.ConstSet {
+				// This is the problem - originalPropSchema has ConstSet but Field.Const() returns Set=false
+				// This means Field.Spec.Schema doesn't match originalPropSchema
+				// Force the Property's Schema to point to the original
+				g.log.Warn("Field.Const() returns Set=false but originalPropSchema.ConstSet=true - fixing",
+					zap.String("field", fieldName),
+					zap.String("property", prop.Name),
+					zap.Bool("prop_schema_nil", prop.Schema == nil),
+					zap.Bool("prop_schema_const_set", prop.Schema != nil && prop.Schema.ConstSet),
+					zap.Bool("original_prop_schema_const_set", originalPropSchema.ConstSet),
+					zap.Bool("spec_nil", field.Spec == nil),
+					zap.Bool("spec_schema_nil", field.Spec != nil && field.Spec.Schema == nil),
+					zap.Bool("spec_schema_const_set", field.Spec != nil && field.Spec.Schema != nil && field.Spec.Schema.ConstSet),
+					zap.Bool("spec_eq_prop", field.Spec == prop),
+				)
+				// Force the Property's Schema to point to the original
+				prop.Schema = originalPropSchema
+				// Verify it works now
+				if constVal2 := field.Const(); constVal2.Set {
+					g.log.Info("Fixed: Field.Const() now returns Set=true",
+						zap.String("field", fieldName),
+						zap.Any("const_value", constVal2.Value),
+					)
+				}
+			}
+			if err := addField(field, slot); err != nil {
 				return nil, err
 			}
 		}

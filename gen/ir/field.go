@@ -100,6 +100,21 @@ func (t Type) DefaultFields() (r []*Field) {
 	return r
 }
 
+// ConstFields returns fields with const values.
+func (t Type) ConstFields() (r []*Field) {
+	for _, f := range t.Fields {
+		if val := f.Const(); val.Set {
+			r = append(r, f)
+		}
+	}
+	return r
+}
+
+// HasConstFields whether type has fields with const values.
+func (t Type) HasConstFields() bool {
+	return len(t.ConstFields()) > 0
+}
+
 // HasDefaultFields whether type has fields with default values.
 func (t Type) HasDefaultFields() bool {
 	return slices.ContainsFunc(t.Fields, func(f *Field) bool {

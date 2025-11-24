@@ -121,6 +121,9 @@ func (s *{{ $.Name }}) Decode(d *jx.Decoder) error {
 	{{- if $.HasDefaultFields }}
 	s.setDefaults()
 	{{- end }}
+	{{- if $.HasConstFields }}
+	s.setConsts()
+	{{- end }}
 
 	{{- if $additional }}
 	{{- $item := $additional.Type.Item }}
@@ -149,8 +152,12 @@ func (s *{{ $.Name }}) Decode(d *jx.Decoder) error {
 					{{- $t := $f.Type }}
 					{{- $val := print_go $const.Value }}
 					{{- if $t.IsPrimitive }}
-						{{- if or (eq $t.Primitive.String "string") (eq $t.Primitive.String "bool") }}
-							if s.{{ $f.Name }} != {{ $t.Go }}({{ $val }}) {
+						{{- if $t.Primitive.IsString }}
+							if s.{{ $f.Name }} != {{ $val }} {
+								return errors.Errorf("field %q must be %v", {{ quote $f.Tag.JSON }}, {{ $val }})
+							}
+						{{- else if eq $t.Go "bool" }}
+							if s.{{ $f.Name }} != {{ $val }} {
 								return errors.Errorf("field %q must be %v", {{ quote $f.Tag.JSON }}, {{ $val }})
 							}
 						{{- else if $t.IsNumeric }}
@@ -173,6 +180,23 @@ func (s *{{ $.Name }}) Decode(d *jx.Decoder) error {
 							{{- else if $j.IsBase64 }}
 								expected, _ := jx.DecodeStr({{ quote $val }}).Base64()
 								if string(s.{{ $f.Name }}) != string(expected) {
+									return errors.Errorf("field %q must be %v", {{ quote $f.Tag.JSON }}, {{ $val }})
+								}
+							{{- end }}
+						{{- end }}
+					{{- else if $t.IsGeneric }}
+						{{- $g := $t.GenericOf }}
+						{{- if $g.IsPrimitive }}
+							{{- if $g.Primitive.IsString }}
+								if s.{{ $f.Name }}.Set && s.{{ $f.Name }}.Value != {{ $val }} {
+									return errors.Errorf("field %q must be %v", {{ quote $f.Tag.JSON }}, {{ $val }})
+								}
+							{{- else if eq $g.Go "bool" }}
+								if s.{{ $f.Name }}.Set && s.{{ $f.Name }}.Value != {{ $val }} {
+									return errors.Errorf("field %q must be %v", {{ quote $f.Tag.JSON }}, {{ $val }})
+								}
+							{{- else if $g.IsNumeric }}
+								if s.{{ $f.Name }}.Set && s.{{ $f.Name }}.Value != {{ $g.Go }}({{ $val }}) {
 									return errors.Errorf("field %q must be %v", {{ quote $f.Tag.JSON }}, {{ $val }})
 								}
 							{{- end }}

@@ -23,6 +23,8 @@ func transformSchema(schema *jsonschema.Schema) *jsonschema.Schema {
 // if such pattern is detected, this function will return the inner schema.
 func transformSingleOneOf(schema *jsonschema.Schema) *jsonschema.Schema {
 	if schema.Discriminator == nil && len(schema.OneOf) == 1 {
+		// Return the inner schema directly - it should already have const values
+		// since it was parsed from the original schema
 		return schema.OneOf[0]
 	}
 	return schema
@@ -79,5 +81,8 @@ func transformNullableUnionType(schema *jsonschema.Schema) *jsonschema.Schema {
 	// Make a shallow copy to avoid mutating the original schema.
 	nullableSchema := *nonNullSchema
 	nullableSchema.Nullable = true
+	// Preserve const values in the copy
+	nullableSchema.Const = nonNullSchema.Const
+	nullableSchema.ConstSet = nonNullSchema.ConstSet
 	return &nullableSchema
 }

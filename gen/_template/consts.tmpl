@@ -1,0 +1,26 @@
+{{- /*gotype: github.com/ogen-go/ogen/gen.TemplateConfig*/ -}}
+
+{{ define "consts/body" }}
+{{- range $name, $s := $.Types }}
+{{- $consts := $s.ConstFields }}
+{{- if len $consts }}
+// setConsts sets const values of fields.
+func (s *{{ $s.Name }}) setConsts()  {
+	{{- range $f := $consts }}
+	{
+	{{- template "consts/set" default_elem $f.Type (printf "s.%s" $f.Name) $f.Const }}
+	}
+	{{- end }}
+}
+{{- end }}
+{{- end }}
+{{ end }}
+
+{{ define "consts" }}
+
+{{ template "header" $ }}
+
+{{ template "consts/body" $ }}
+
+{{ end }}
+
