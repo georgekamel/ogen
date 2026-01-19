@@ -29,6 +29,10 @@ type Field struct {
 	Inline InlineField
 	// Spec is property schema. May be nil.
 	Spec *jsonschema.Property
+	// ConstValue is the const value for this field, if set.
+	ConstValue any
+	// ConstSet indicates whether ConstValue is set.
+	ConstSet bool
 }
 
 // ValidationName returns name for FieldError.

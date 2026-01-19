@@ -7,8 +7,25 @@
 
 	{{- range $i, $f := $fields }}
 		{
+		{{- if $f.ConstSet }}
+		{{- /* Field has const value, encode it directly */}}
+		e.FieldStart({{ $f.Tag.EscapedJSON }})
+		{{- $t := $f.Type }}
+		{{- $j := $t.JSON }}
+		{{- $constVal := print_go $f.ConstValue }}
+		{{- if $j.TimeFormat }}
+		json.EncodeTimeFormat(e, {{ $constVal }}, {{ $j.TimeFormat }})
+		{{- else if $j.Encoder }}
+		json.Encode{{ $j.Encoder }}(e, {{ $constVal }})
+		{{- else if $j.Fn }}
+		e.{{ $j.Fn }}({{ $constVal }})
+		{{- else }}
+		{{ errorf "unsupported const encoding for type: %s" $t }}
+		{{- end }}
+		{{- else }}
 		{{- $elem := field_elem $f }}
 		{{- template "json/enc" $elem }}
+		{{- end }}
 		}
 	{{- end }}
 	{{- if $additional }}
