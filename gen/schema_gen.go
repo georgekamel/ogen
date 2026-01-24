@@ -432,7 +432,7 @@ func (g *schemaGen) generate2(name string, schema *jsonschema.Schema) (ret *ir.T
 				}
 			}
 
-			if err := addField(&ir.Field{
+			field := &ir.Field{
 				Name: fieldName,
 				Type: t,
 				Tag: ir.Tag{
@@ -440,7 +440,8 @@ func (g *schemaGen) generate2(name string, schema *jsonschema.Schema) (ret *ir.T
 					ExtraTags: prop.Schema.ExtraTags,
 				},
 				Spec: &prop,
-			}, slot); err != nil {
+			}
+			if err := addField(field, slot); err != nil {
 				return nil, err
 			}
 		}
